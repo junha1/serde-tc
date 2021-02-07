@@ -1,13 +1,13 @@
-use proc_macro2::{Span, TokenStream as TokenStream2};
 use crate::args::MacroArgs;
 use heck::CamelCase;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 
 pub(super) fn generate_dispatcher(
     source_trait: &syn::ItemTrait,
     args: &MacroArgs,
 ) -> Result<TokenStream2, TokenStream2> {
     let trait_ident = source_trait.ident.clone();
-    let serde_format = args.serde_format;
+    let serde_format = args.serde_format.clone();
 
     let mut if_else_clauses_tuple = TokenStream2::new();
     let mut if_else_clauses_dict = TokenStream2::new();
@@ -53,7 +53,7 @@ pub(super) fn generate_dispatcher(
                 }) => (&**t, name),
                 _ => panic!("Method has a paramter pattern that is not supported"),
             };
-            let mut arg_name = match **arg_name {
+            let mut arg_name = match *arg_name.clone() {
                 syn::Pat::Ident(name) => name.ident,
                 _ => panic!("Method has a paramter pattern that is not supported"),
             };
@@ -70,11 +70,11 @@ pub(super) fn generate_dispatcher(
             type_annotation.elems.push(arg_type.clone());
 
             // Dict case
-            let arg_name_lit = syn::LitStr::new(&arg_name.to_string(), proc_macro2::Span::call_site());
-            if_else_clauses_dict.extend(quote! {
-                let #the_iden: #arg_type = arguments.get(arg_name_lit).ok_or(format!("argument not found: `{}`", #arg_name))?;
+            let arg_name_lit =
+                syn::LitStr::new(&arg_name.to_string(), proc_macro2::Span::call_site());
+            stmt_deserialize_dict.extend(quote! {
+                let #the_iden: #arg_type = arguments.get(#arg_name_lit).ok_or(format!("argument not found: `{}`", #arg_name))?;
             });
-
 
             // Tuple case
             let_pattern.elems.push(syn::Pat::Ident(syn::PatIdent {
@@ -108,13 +108,14 @@ pub(super) fn generate_dispatcher(
             args_applying.push(syn::parse2(the_arg).unwrap());
         }
         let stmt_deserialize_tuple = quote! {
-            let #let_pattern: #type_annotation = #serde_format::from_str(args)?;
+            let #let_pattern: #type_annotation = #serde_format::from_str(arguments)?;
         };
         let mut method_name = method.sig.ident.clone();
         if args.camel_case {
             method_name = quote::format_ident!("{}", method_name.to_string().to_camel_case());
         }
-        let method_name_lit = syn::LitStr::new(&method_name.to_string(), proc_macro2::Span::call_site());
+        let method_name_lit =
+            syn::LitStr::new(&method_name.to_string(), proc_macro2::Span::call_site());
 
         let stmt_call = if args.async_methods {
             quote! {
@@ -125,20 +126,20 @@ pub(super) fn generate_dispatcher(
                 let result = self.#method_name(#args_applying);
             }
         };
-        
+
         let the_return = quote! {
-            return #serde_format::to_string(&result)?;
+            return Ok(#serde_format::to_string(&result).unwrap());
         };
 
         if_else_clauses_tuple.extend(quote! {
-            if method == method_name {
+            if method == #method_name_lit {
                 #stmt_deserialize_tuple
                 #stmt_call
                 #the_return
             }
         });
         if_else_clauses_dict.extend(quote! {
-            if method == method_name {
+            if method == #method_name_lit {
                 #stmt_deserialize_dict
                 #stmt_call
                 #the_return
@@ -146,26 +147,30 @@ pub(super) fn generate_dispatcher(
         });
     }
 
+    let (trait_name_tuple, trait_name_dict) = if args.async_methods {
+        (
+            quote! {serde_tc::DispatchStringTuple},
+            quote! {serde_tc::DispatchStringDict},
+        )
+    } else {
+        (
+            quote! {serde_tc::DispatchStringTupleAsync},
+            quote! {serde_tc::DispatchStringDictAsync},
+        )
+    };
+
     Ok(quote! {
-        impl serde_tc::CallByString for dyn #trait_ident {
+        impl #trait_name_tuple for dyn #trait_ident {
             type Error = #serde_format::Error;
-            fn call_dict(&self, arguments: &str) -> Result<String, Self::Error> {
-                #stmt_deserialize_dict
-                #stmt_call
-                #the_return
-            }
-            fn call_tuple(&self, arguments: &str) -> Result<String, Self::Error> {
-                #stmt_deserialize_tuple
-                #stmt_call
-                #the_return
+            fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Self::Error> {
+                #if_else_clauses_tuple
             }
         }
-        impl serde_tc::CallByStringAsync for dyn #trait_ident {
-            async fn call_dict(&self, arguments: &str) -> Result<String, Self::Error> {
-
-            }
-            async fn call_tuple(&self, arguments: &str) -> Result<String, Self::Error> {
-
+        impl #trait_name_dict for dyn #trait_ident {
+            type Error = #serde_format::Error;
+            type Poly = #serde_format::Value;
+            fn dispatch(&self, method: &str, arguments: &HashMap<String, Self::Poly>) -> Result<String, DictError<Self::Error>> {
+                #if_else_clauses_dict
             }
         }
     })

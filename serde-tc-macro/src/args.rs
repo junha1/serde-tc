@@ -21,7 +21,7 @@ impl<T: Parse> Parse for SingleArg<T> {
 }
 
 #[derive(Default)]
-struct MacroArgsRaw {
+pub struct MacroArgsRaw {
     pub serde_format: Option<syn::Path>,
     pub camel_case: Option<()>,
     pub async_methods: Option<()>,
@@ -34,7 +34,7 @@ pub struct MacroArgs {
 }
 
 impl MacroArgsRaw {
-    fn update(&mut self, ts: TokenStream2) -> syn::parse::Result<()> {
+    pub fn update(&mut self, ts: TokenStream2) -> syn::parse::Result<()> {
         if let Ok(arg) = syn::parse2::<syn::Ident>(ts.clone()) {
             return if arg == quote::format_ident!("camel_case") {
                 if self.camel_case.replace(()).is_some() {
@@ -66,11 +66,11 @@ impl MacroArgsRaw {
         }
     }
 
-    fn fill_default_values(self) -> MacroArgs {
+    pub fn fill_default_values(self) -> MacroArgs {
         MacroArgs {
-            serde_format: self.serde_format.unwrap_or_else(|| {
-                syn::parse2(quote! {serde_json}).unwrap()
-            }),
+            serde_format: self
+                .serde_format
+                .unwrap_or_else(|| syn::parse2(quote! {serde_json}).unwrap()),
             camel_case: self.camel_case.map(|_| true).unwrap_or(false),
             async_methods: self.async_methods.map(|_| true).unwrap_or(false),
         }
