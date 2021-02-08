@@ -60,20 +60,23 @@ pub(super) fn generate_dispatcher(
             if args.camel_case {
                 arg_name = quote::format_ident!("{}", arg_name.to_string().to_camel_case());
             }
-            let arg_type = if let Some(unrefed_type) = crate::helper::is_ref(arg_type)
-                .map_err(|e| syn::Error::new_spanned(arg_source, &e).to_compile_error())?
+            let arg_type_to_deserialize = if let Some(unrefed_type) =
+                crate::helper::is_ref(arg_type)
+                    .map_err(|e| syn::Error::new_spanned(arg_source, &e).to_compile_error())?
             {
                 unrefed_type
             } else {
                 arg_type.clone()
             };
-            type_annotation.elems.push(arg_type.clone());
+            type_annotation.elems.push(arg_type_to_deserialize.clone());
 
             // Dict case
             let arg_name_lit =
                 syn::LitStr::new(&arg_name.to_string(), proc_macro2::Span::call_site());
             stmt_deserialize_dict.extend(quote! {
-                let #the_iden: #arg_type = arguments.get(#arg_name_lit).ok_or(format!("argument not found: `{}`", #arg_name))?;
+                let #the_iden: #arg_type_to_deserialize = #serde_format::from_value(arguments.get(#arg_name_lit)
+                .ok_or_else(|| serde_tc::DictError::ArgumentNotFound(#arg_name_lit.to_owned()))?.clone())
+                .map_err(|x| serde_tc::DictError::Parse(x))?;
             });
 
             // Tuple case
@@ -108,7 +111,7 @@ pub(super) fn generate_dispatcher(
             args_applying.push(syn::parse2(the_arg).unwrap());
         }
         let stmt_deserialize_tuple = quote! {
-            let #let_pattern: #type_annotation = #serde_format::from_str(arguments)?;
+            let #let_pattern: #type_annotation = #serde_format::from_str(arguments).map_err(|x| serde_tc::DictError::Parse(x))?;
         };
         let mut method_name = method.sig.ident.clone();
         if args.camel_case {
@@ -147,31 +150,41 @@ pub(super) fn generate_dispatcher(
         });
     }
 
-    let (trait_name_tuple, trait_name_dict) = if args.async_methods {
-        (
-            quote! {serde_tc::DispatchStringTuple},
-            quote! {serde_tc::DispatchStringDict},
-        )
+    if args.async_methods {
+        Ok(quote! {
+            impl serde_tc::DispatchStringTupleAsync for dyn #trait_ident {
+                type Error = #serde_format::Error;
+                async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, serde_tc::DictError<Self::Error>> {
+                    #if_else_clauses_tuple
+                    return Err(serde_tc::DictError::MethodNotFound(method.to_owned()))
+                }
+            }
+            impl serde_tc::DispatchStringDictAsync for dyn #trait_ident {
+                type Error = #serde_format::Error;
+                type Poly = #serde_format::Value;
+                async fn dispatch(&self, method: &str, arguments: &HashMap<String, Self::Poly>) -> Result<String, serde_tc::DictError<Self::Error>> {
+                    #if_else_clauses_dict
+                    return Err(serde_tc::DictError::MethodNotFound(method.to_owned()))
+                }
+            }
+        })
     } else {
-        (
-            quote! {serde_tc::DispatchStringTupleAsync},
-            quote! {serde_tc::DispatchStringDictAsync},
-        )
-    };
-
-    Ok(quote! {
-        impl #trait_name_tuple for dyn #trait_ident {
-            type Error = #serde_format::Error;
-            fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Self::Error> {
-                #if_else_clauses_tuple
+        Ok(quote! {
+            impl serde_tc::DispatchStringTuple for dyn #trait_ident {
+                type Error = #serde_format::Error;
+                fn dispatch(&self, method: &str, arguments: &str) -> Result<String, serde_tc::DictError<Self::Error>> {
+                    #if_else_clauses_tuple
+                    return Err(serde_tc::DictError::MethodNotFound(method.to_owned()))
+                }
             }
-        }
-        impl #trait_name_dict for dyn #trait_ident {
-            type Error = #serde_format::Error;
-            type Poly = #serde_format::Value;
-            fn dispatch(&self, method: &str, arguments: &HashMap<String, Self::Poly>) -> Result<String, DictError<Self::Error>> {
-                #if_else_clauses_dict
+            impl serde_tc::DispatchStringDict for dyn #trait_ident {
+                type Error = #serde_format::Error;
+                type Poly = #serde_format::Value;
+                fn dispatch(&self, method: &str, arguments: &HashMap<String, Self::Poly>) -> Result<String, serde_tc::DictError<Self::Error>> {
+                    #if_else_clauses_dict
+                    return Err(serde_tc::DictError::MethodNotFound(method.to_owned()))
+                }
             }
-        }
-    })
+        })
+    }
 }

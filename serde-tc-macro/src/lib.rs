@@ -3,6 +3,7 @@ extern crate quote;
 
 mod args;
 mod dispatcher;
+mod encoder;
 mod helper;
 
 use args::MacroArgsRaw;
@@ -10,7 +11,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 
 #[proc_macro_attribute]
-pub fn serde_tc_str(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn serde_tc(args: TokenStream, input: TokenStream) -> TokenStream {
     match expand(TokenStream2::from(args), TokenStream2::from(input)) {
         Ok(x) => TokenStream::from(x),
         Err(x) => TokenStream::from(x),
@@ -18,7 +19,7 @@ pub fn serde_tc_str(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn serde_tc_str_debug(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn serde_tc_debug(args: TokenStream, input: TokenStream) -> TokenStream {
     match expand(TokenStream2::from(args), TokenStream2::from(input)) {
         Ok(x) => println!("{}", x),
         Err(x) => println!("{}", x),
@@ -40,17 +41,21 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
         }
     };
 
-    let expansion = dispatcher::generate_dispatcher(&source_trait, &args)?;
+    let dispatcher = dispatcher::generate_dispatcher(&source_trait, &args)?;
+    let encoder = encoder::generate_encoder(&source_trait, &args)?;
+
     if args.async_methods {
         Ok(quote! {
             #[async_trait::async_trait]
             #source_trait
-            #expansion
+            #dispatcher
+            #encoder
         })
     } else {
         Ok(quote! {
             #source_trait
-            #expansion
+            #dispatcher
+            #encoder
         })
     }
 }

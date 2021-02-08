@@ -25,12 +25,21 @@ pub struct MacroArgsRaw {
     pub serde_format: Option<syn::Path>,
     pub camel_case: Option<()>,
     pub async_methods: Option<()>,
+    pub encoder: Option<()>,
+    pub dispatcher: Option<()>,
+    pub tuple: Option<()>,
+    pub dict: Option<()>,
 }
 
+#[derive(Debug)]
 pub struct MacroArgs {
     pub serde_format: syn::Path,
     pub camel_case: bool,
     pub async_methods: bool,
+    pub encoder: bool,
+    pub dispatcher: bool,
+    pub tuple: bool,
+    pub dict: bool,
 }
 
 impl MacroArgsRaw {
@@ -44,6 +53,30 @@ impl MacroArgsRaw {
                 }
             } else if arg == quote::format_ident!("async_methods") {
                 if self.async_methods.replace(()).is_some() {
+                    Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
+                } else {
+                    Ok(())
+                }
+            } else if arg == quote::format_ident!("encoder") {
+                if self.encoder.replace(()).is_some() {
+                    Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
+                } else {
+                    Ok(())
+                }
+            } else if arg == quote::format_ident!("dispatcher") {
+                if self.dispatcher.replace(()).is_some() {
+                    Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
+                } else {
+                    Ok(())
+                }
+            } else if arg == quote::format_ident!("tuple") {
+                if self.tuple.replace(()).is_some() {
+                    Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
+                } else {
+                    Ok(())
+                }
+            } else if arg == quote::format_ident!("dict") {
+                if self.dict.replace(()).is_some() {
                     Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
                 } else {
                     Ok(())
@@ -73,6 +106,10 @@ impl MacroArgsRaw {
                 .unwrap_or_else(|| syn::parse2(quote! {serde_json}).unwrap()),
             camel_case: self.camel_case.map(|_| true).unwrap_or(false),
             async_methods: self.async_methods.map(|_| true).unwrap_or(false),
+            dispatcher: self.dispatcher.map(|_| true).unwrap_or(false),
+            encoder: self.encoder.map(|_| true).unwrap_or(false),
+            tuple: self.tuple.map(|_| true).unwrap_or(false),
+            dict: self.dict.map(|_| true).unwrap_or(false),
         }
     }
 }

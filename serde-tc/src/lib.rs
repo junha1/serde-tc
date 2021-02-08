@@ -1,11 +1,13 @@
 use async_trait::async_trait;
 pub use serde;
-pub use serde_tc_macro::{serde_tc_str, serde_tc_str_debug};
+pub use serde_tc_macro::*;
 use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DictError<T: std::error::Error> {
+    #[error("`{0}`")]
+    MethodNotFound(String),
     #[error("`{0}`")]
     ArgumentNotFound(String),
     #[error("`{0}`")]
@@ -14,7 +16,7 @@ pub enum DictError<T: std::error::Error> {
 
 pub trait DispatchStringTuple {
     type Error: std::error::Error;
-    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Self::Error>;
+    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, DictError<Self::Error>>;
 }
 
 pub trait DispatchStringDict {
@@ -30,7 +32,11 @@ pub trait DispatchStringDict {
 #[async_trait]
 pub trait DispatchStringTupleAsync {
     type Error: std::error::Error;
-    async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Self::Error>;
+    async fn dispatch(
+        &self,
+        method: &str,
+        arguments: &str,
+    ) -> Result<String, DictError<Self::Error>>;
 }
 
 #[async_trait]
