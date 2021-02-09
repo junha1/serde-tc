@@ -18,3 +18,4 @@ serde-tc-macro = { version = "0.1", path = "../serde-tc-macro"}
 
 [dev-dependencies]
 serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }

@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 pub use serde;
 pub use serde_tc_macro::*;
-use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -22,11 +21,7 @@ pub trait DispatchStringTuple {
 pub trait DispatchStringDict {
     type Error: std::error::Error;
     type Poly;
-    fn dispatch(
-        &self,
-        method: &str,
-        arguments: &HashMap<String, Self::Poly>,
-    ) -> Result<String, DictError<Self::Error>>;
+    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, DictError<Self::Error>>;
 }
 
 #[async_trait]
@@ -46,6 +41,6 @@ pub trait DispatchStringDictAsync {
     async fn dispatch(
         &self,
         method: &str,
-        arguments: &HashMap<String, Self::Poly>,
+        arguments: &str,
     ) -> Result<String, DictError<Self::Error>>;
 }

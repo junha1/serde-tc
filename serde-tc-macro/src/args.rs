@@ -124,8 +124,3 @@ impl Parse for MacroArgsRaw {
         Ok(result)
     }
 }
-
-pub fn get_args(args: TokenStream2) -> Result<MacroArgs, TokenStream2> {
-    let args: MacroArgsRaw = syn::parse2(args).map_err(|e| e.to_compile_error())?;
-    Ok(args.fill_default_values())
-}
