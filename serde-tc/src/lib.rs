@@ -4,7 +4,7 @@ pub use serde_tc_macro::*;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum DictError<T: std::error::Error> {
+pub enum Error<T: std::error::Error> {
     #[error("`{0}`")]
     MethodNotFound(String),
     #[error("`{0}`")]
@@ -15,32 +15,24 @@ pub enum DictError<T: std::error::Error> {
 
 pub trait DispatchStringTuple {
     type Error: std::error::Error;
-    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, DictError<Self::Error>>;
+    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
 }
 
 pub trait DispatchStringDict {
     type Error: std::error::Error;
     type Poly;
-    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, DictError<Self::Error>>;
+    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
 }
 
 #[async_trait]
 pub trait DispatchStringTupleAsync {
     type Error: std::error::Error;
-    async fn dispatch(
-        &self,
-        method: &str,
-        arguments: &str,
-    ) -> Result<String, DictError<Self::Error>>;
+    async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
 }
 
 #[async_trait]
 pub trait DispatchStringDictAsync {
     type Error: std::error::Error;
     type Poly;
-    async fn dispatch(
-        &self,
-        method: &str,
-        arguments: &str,
-    ) -> Result<String, DictError<Self::Error>>;
+    async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
 }
