@@ -155,7 +155,7 @@ pub(super) fn generate_dispatcher(
             #[async_trait::async_trait]
             impl serde_tc::DispatchStringTupleAsync for dyn #trait_ident {
                 type Error = #serde_format::Error;
-                async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, serde_tc::DictError<Self::Error>> {
+                async fn dispatch(&self, method: &str, arguments: &str) -> std::result::Result<String, serde_tc::DictError<Self::Error>> {
                     #if_else_clauses_tuple
                     return Err(serde_tc::DictError::MethodNotFound(method.to_owned()))
                 }
@@ -164,7 +164,7 @@ pub(super) fn generate_dispatcher(
             impl serde_tc::DispatchStringDictAsync for dyn #trait_ident {
                 type Error = #serde_format::Error;
                 type Poly = #serde_format::Value;
-                async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, serde_tc::DictError<Self::Error>> {
+                async fn dispatch(&self, method: &str, arguments: &str) -> std::result::Result<String, serde_tc::DictError<Self::Error>> {
                     let arguments: std::collections::HashMap<String, Self::Poly> = #serde_format::from_str(arguments)
                     .map_err(|x| serde_tc::DictError::Parse(x))?;
                     #if_else_clauses_dict
@@ -176,7 +176,7 @@ pub(super) fn generate_dispatcher(
         Ok(quote! {
             impl serde_tc::DispatchStringTuple for dyn #trait_ident {
                 type Error = #serde_format::Error;
-                fn dispatch(&self, method: &str, arguments: &str) -> Result<String, serde_tc::DictError<Self::Error>> {
+                fn dispatch(&self, method: &str, arguments: &str) -> std::result::Result<String, serde_tc::DictError<Self::Error>> {
                     #if_else_clauses_tuple
                     return Err(serde_tc::DictError::MethodNotFound(method.to_owned()))
                 }
@@ -184,7 +184,7 @@ pub(super) fn generate_dispatcher(
             impl serde_tc::DispatchStringDict for dyn #trait_ident {
                 type Error = #serde_format::Error;
                 type Poly = #serde_format::Value;
-                fn dispatch(&self, method: &str, arguments: &str) -> Result<String, serde_tc::DictError<Self::Error>> {
+                fn dispatch(&self, method: &str, arguments: &str) -> std::result::Result<String, serde_tc::DictError<Self::Error>> {
                     let arguments: std::collections::HashMap<String, Self::Poly> = #serde_format::from_str(arguments)
                     .map_err(|x| serde_tc::DictError::Parse(x))?;
                     #if_else_clauses_dict
