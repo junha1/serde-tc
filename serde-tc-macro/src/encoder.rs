@@ -86,6 +86,7 @@ pub(super) fn generate_encoder(
         modules.extend(quote! {
             #[allow(unused_mut)]
             pub mod #module_name {
+                use super::*;
                 #functions_dict
             }
         });
@@ -97,6 +98,7 @@ pub(super) fn generate_encoder(
         );
         modules.extend(quote! {
             pub mod #module_name {
+                use super::*;
                 #functions_tuple
             }
         });
