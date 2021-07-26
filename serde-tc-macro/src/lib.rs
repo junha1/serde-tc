@@ -4,6 +4,7 @@ extern crate quote;
 mod args;
 mod dispatcher;
 mod encoder;
+mod fallible;
 mod helper;
 
 use args::MacroArgsRaw;
@@ -43,17 +44,22 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
 
     let dispatcher = dispatcher::generate_dispatcher(&source_trait, &args)?;
     let encoder = encoder::generate_encoder(&source_trait, &args)?;
+    let fallible = fallible::generate_fallible_trait(&source_trait, &args)?;
 
     if args.async_methods {
         Ok(quote! {
             #[async_trait::async_trait]
             #source_trait
+            #[async_trait::async_trait]
+            #fallible
             #dispatcher
             #encoder
         })
     } else {
         Ok(quote! {
             #source_trait
+            #[async_trait::async_trait]
+            #fallible
             #dispatcher
             #encoder
         })

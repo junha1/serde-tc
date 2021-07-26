@@ -29,6 +29,7 @@ pub struct MacroArgsRaw {
     pub dispatcher: Option<()>,
     pub tuple: Option<()>,
     pub dict: Option<()>,
+    pub fallible: Option<syn::Path>,
 }
 
 #[derive(Debug)]
@@ -40,6 +41,7 @@ pub struct MacroArgs {
     pub dispatcher: bool,
     pub tuple: bool,
     pub dict: bool,
+    pub fallible: Option<syn::Path>,
 }
 
 impl MacroArgsRaw {
@@ -94,6 +96,13 @@ impl MacroArgsRaw {
             } else {
                 Ok(())
             }
+        } else if arg.arg_name == quote::format_ident!("fallible") {
+            let value = syn::parse2(arg.arg_value)?;
+            if self.fallible.replace(value).is_some() {
+                Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
+            } else {
+                Ok(())
+            }
         } else {
             Err(syn::parse::Error::new_spanned(ts, "Unsupported argument"))
         }
@@ -110,6 +119,7 @@ impl MacroArgsRaw {
             encoder: self.encoder.map(|_| true).unwrap_or(false),
             tuple: self.tuple.map(|_| true).unwrap_or(false),
             dict: self.dict.map(|_| true).unwrap_or(false),
+            fallible: self.fallible,
         }
     }
 }
