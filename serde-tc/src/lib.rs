@@ -36,3 +36,10 @@ pub trait DispatchStringDictAsync {
     type Poly;
     async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
 }
+
+#[async_trait]
+pub trait StubCall: Send + Sync {
+    type Error;
+
+    async fn call(&self, method: &'static str, params: String) -> Result<String, Self::Error>;
+}

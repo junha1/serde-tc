@@ -30,6 +30,7 @@ pub struct MacroArgsRaw {
     pub tuple: Option<()>,
     pub dict: Option<()>,
     pub fallible: Option<syn::Path>,
+    pub stub: Option<()>,
 }
 
 #[derive(Debug)]
@@ -42,6 +43,7 @@ pub struct MacroArgs {
     pub tuple: bool,
     pub dict: bool,
     pub fallible: Option<syn::Path>,
+    pub stub: bool,
 }
 
 impl MacroArgsRaw {
@@ -83,6 +85,12 @@ impl MacroArgsRaw {
                 } else {
                     Ok(())
                 }
+            } else if arg == quote::format_ident!("stub") {
+                if self.stub.replace(()).is_some() {
+                    Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
+                } else {
+                    Ok(())
+                }
             } else {
                 Err(syn::parse::Error::new_spanned(ts, "Unsupported argument"))
             };
@@ -120,6 +128,7 @@ impl MacroArgsRaw {
             tuple: self.tuple.map(|_| true).unwrap_or(false),
             dict: self.dict.map(|_| true).unwrap_or(false),
             fallible: self.fallible,
+            stub: self.stub.map(|_| true).unwrap_or(false),
         }
     }
 }

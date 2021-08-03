@@ -6,6 +6,7 @@ mod dispatcher;
 mod encoder;
 mod fallible;
 mod helper;
+mod stub;
 
 use args::MacroArgsRaw;
 use proc_macro::TokenStream;
@@ -45,6 +46,15 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
     let dispatcher = dispatcher::generate_dispatcher(&source_trait, &args)?;
     let encoder = encoder::generate_encoder(&source_trait, &args)?;
     let fallible = fallible::generate_fallible_trait(&source_trait, &args)?;
+    let stub = if args.stub {
+        stub::generate_stub(
+            &source_trait,
+            &syn::parse2(fallible.clone()).unwrap(),
+            &args,
+        )?
+    } else {
+        quote! {}
+    };
 
     if args.async_methods {
         Ok(quote! {
@@ -54,6 +64,7 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
             #fallible
             #dispatcher
             #encoder
+            #stub
         })
     } else {
         Ok(quote! {
@@ -62,6 +73,7 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
             #fallible
             #dispatcher
             #encoder
+            #stub
         })
     }
 }
