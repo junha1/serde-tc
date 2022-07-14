@@ -60,7 +60,7 @@ pub(super) fn generate_encoder(
         the_fn.sig.ident = method.sig.ident.clone();
 
         // remove &self
-        let inputs = method.sig.inputs.iter().cloned().skip(1).collect();
+        let inputs = method.sig.inputs.iter().skip(1).cloned().collect();
         the_fn.sig.inputs = inputs;
 
         the_fn.block = syn::parse2(quote! {{

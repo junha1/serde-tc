@@ -96,7 +96,7 @@ pub(super) fn generate_dispatcher(
                 .push_punct(syn::token::Comma(Span::call_site()));
 
             let arg_ident = quote::format_ident!("a{}", j + 1);
-            let the_arg = if crate::helper::is_ref(&arg_type)
+            let the_arg = if crate::helper::is_ref(arg_type)
                 .map_err(|e| syn::Error::new_spanned(arg_source, &e).to_compile_error())?
                 .is_some()
             {
