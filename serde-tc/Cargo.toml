@@ -1,6 +1,6 @@
 [package]
 name = "serde-tc"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Junha Yang <junhayang1@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -14,7 +14,7 @@ include = ["src/**/*.rs", "README.md", "LICENSE"]
 serde = { version = "1.0", features = ["derive"] }
 async-trait = "0.1.42"
 thiserror = "1.0"
-serde-tc-macro = { version = "=0.2.2", path = "../serde-tc-macro"}
+serde-tc-macro = { version = "=0.2.3", path = "../serde-tc-macro"}
 serde_json = { version = "1.0" }
 tokio = { version = "1.0", features = ["full"] }
 anyhow = { version = "1.0" }

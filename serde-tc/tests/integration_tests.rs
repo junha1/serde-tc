@@ -10,7 +10,7 @@ trait Trait1 {
     fn f3(&self, a1: i32);
 }
 
-#[serde_tc(dispatcher, encoder, dict, tuple, async_methods, fallible = anyhow::Error, stub)]
+#[serde_tc_full]
 trait Trait2: Send + Sync {
     async fn f1(&self, a1: i64, a2: &str, a3: &i32) -> String;
     async fn f2(&self) -> String;
