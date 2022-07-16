@@ -48,7 +48,6 @@ async fn dispatch(
     Json(args): Json<RawArg>,
     Extension(state): Extension<Arc<State>>,
 ) -> (StatusCode, Json<Value>) {
-    println!("{:?} | {:?}", path, args);
     if let Some(object) = state.registered_objects.get(&path) {
         match dispatch_raw(object.as_ref(), &args.method, args.params.clone()).await {
             Ok(value) => (StatusCode::OK, Json(value)),
@@ -100,7 +99,6 @@ async fn dispatch_raw<T>(
 where
     T: HttpInterface + ?Sized,
 {
-    println!("{:?} | {:?}", method, arguments);
     let result = if arguments.is_array() {
         DispatchStringTupleAsync::dispatch(api, method, &arguments.to_string()).await
     } else if arguments.is_object() {
