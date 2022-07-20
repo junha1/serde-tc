@@ -77,7 +77,7 @@ pub async fn run_server(port: u16, objects: HashMap<String, Arc<dyn HttpInterfac
     let app = app.layer(Extension(Arc::new(State {
         registered_objects: objects,
     })));
-    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
