@@ -69,7 +69,7 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
     } else {
         quote! {}
     };
-
+    let trait_ident = source_trait.ident.clone();
     if args.async_methods {
         Ok(quote! {
             #[async_trait::async_trait]
@@ -79,6 +79,7 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
             #dispatcher
             #encoder
             #stub
+            impl HttpInterface for dyn #trait_ident {}
         })
     } else {
         Ok(quote! {

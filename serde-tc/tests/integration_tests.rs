@@ -78,8 +78,6 @@ async fn test1_async() {
     );
 }
 
-impl HttpInterface for dyn Trait2 {}
-
 fn create_server(port: u16) {
     tokio::task::spawn(run_server(
         port,
