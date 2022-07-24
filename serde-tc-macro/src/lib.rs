@@ -32,8 +32,11 @@ pub fn serde_tc_full(_args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn serde_tc_debug(args: TokenStream, input: TokenStream) -> TokenStream {
-    match expand(TokenStream2::from(args), TokenStream2::from(input)) {
+pub fn serde_tc_debug(_args: TokenStream, input: TokenStream) -> TokenStream {
+    match expand(
+        quote! {dispatcher, encoder, dict, tuple, async_methods, fallible = anyhow::Error, stub},
+        TokenStream2::from(input),
+    ) {
         Ok(x) => println!("{}", x),
         Err(x) => println!("{}", x),
     }
