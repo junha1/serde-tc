@@ -116,7 +116,24 @@ async fn test_failure0() {
 }
 
 #[tokio::test]
-async fn test_success_http() {
+async fn test_success_http1() {
+    create_server(4009);
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://localhost:4001/x")
+        .header("content-type", "application/json")
+        .body(r#"{"method": "f2", "params": {}}"#)
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    assert_eq!(response.json::<String>().await.unwrap(), "hi");
+}
+
+#[tokio::test]
+async fn test_success_http2() {
     create_server(4001);
     let client = reqwest::Client::new();
 
