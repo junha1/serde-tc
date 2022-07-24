@@ -1,6 +1,6 @@
 [package]
 name = "serde-tc"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["Junha Yang <junhayang1@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -20,3 +20,4 @@ tokio = { version = "1.0", features = ["full"] }
 anyhow = { version = "1.0" }
 axum = { version = "0.5.11" }
 reqwest = { version = "0.11", features = ["json"] }
+tower-http = { version = "0.3.0", features = ["cors"] }

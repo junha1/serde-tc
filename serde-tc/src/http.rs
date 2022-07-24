@@ -1,7 +1,7 @@
 use super::*;
 use axum::{
     extract::Path,
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
+use tower_http::cors::CorsLayer;
 
 #[derive(Error, Debug)]
 enum HttpError {
@@ -74,9 +75,16 @@ async fn dispatch(
 pub async fn run_server(port: u16, objects: HashMap<String, Arc<dyn HttpInterface>>) {
     let app = Router::new().route("/", get(root));
     let app = app.route("/:key", post(dispatch));
-    let app = app.layer(Extension(Arc::new(State {
-        registered_objects: objects,
-    })));
+    let app = app
+        .layer(Extension(Arc::new(State {
+            registered_objects: objects,
+        })))
+        .layer(
+            CorsLayer::new()
+                .allow_origin("*".parse::<HeaderValue>().unwrap())
+                .allow_headers([axum::http::header::CONTENT_TYPE])
+                .allow_methods([Method::POST]),
+        );
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
