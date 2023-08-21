@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use http::*;
-use reqwest::Client;
+use hdk_common::crypto::PublicKey;
+use network::*;
 use serde_json::Value;
 use serde_tc::*;
 use std::sync::Arc;
@@ -13,10 +13,14 @@ use tokio::sync::RwLock;
 /// `serde-tc` provides trivial impl. of `StubCall` (`HttpClient`) which will be used for most of the cases.
 #[serde_tc_full]
 trait Calculator: Send + Sync {
-    async fn add(&self, value: i64);
-    async fn is_bigger_than(&self, value: i64) -> bool;
-    async fn get(&self) -> i64;
-    async fn reset(&self);
+    async fn add(&self, instance_key: PublicKey, value: i64) -> Result<(), eyre::Error>;
+    async fn is_bigger_than(
+        &self,
+        instance_key: PublicKey,
+        value: i64,
+    ) -> Result<bool, eyre::Error>;
+    async fn get(&self, instance_key: PublicKey) -> Result<i64, eyre::Error>;
+    async fn reset(&self, instance_key: PublicKey) -> Result<(), eyre::Error>;
 }
 
 struct SimpleCalculator {
@@ -25,22 +29,22 @@ struct SimpleCalculator {
 
 #[async_trait]
 impl Calculator for SimpleCalculator {
-    async fn add(&self, value: i64) {
+    async fn add(&self, instance_key: PublicKey, value: i64) {
         let mut value_ = self.value.write().await;
         *value_ += value;
     }
 
-    async fn is_bigger_than(&self, value: i64) -> bool {
+    async fn is_bigger_than(&self, instance_key: PublicKey, value: i64) -> bool {
         let value_ = self.value.read().await;
         *value_ > value
     }
 
-    async fn get(&self) -> i64 {
+    async fn get(&self, instance_key: PublicKey) -> i64 {
         let value_ = self.value.read().await;
         *value_
     }
 
-    async fn reset(&self) {
+    async fn reset(&self, instance_key: PublicKey) {
         let mut value_ = self.value.write().await;
         *value_ = 0;
     }
@@ -69,65 +73,22 @@ async fn server() {
 /// You somehow directly have the code-level definition of `trait Calculator` (expaneded by `![serde_tc_macro]`).
 /// Then you can use the auto-generated `CalculatorStub` which implements `CalculatorFallible`.
 async fn client_trait_aware() {
-    let client = CalculatorStub::new(Box::new(HttpClient::new(
-        "localhost:14123/x".to_owned(),
-        Client::new(),
-    )));
-    client.reset().await.unwrap();
-    client.add(1).await.unwrap();
-    assert_eq!(client.get().await.unwrap(), 1);
-    client.add(2).await.unwrap();
-    assert_eq!(client.get().await.unwrap(), 3);
-    assert!(!client.is_bigger_than(3).await.unwrap());
-    assert!(client.is_bigger_than(2).await.unwrap());
-    client.reset().await.unwrap();
-    assert_eq!(client.get().await.unwrap(), 0);
-}
-
-/// Client side case 1;
-/// You only 'know' the definition of `trait Calculator` and all you can do is accessing using HTTP
-/// This way of accessing the server is language-agnostic; it uses only JSON and HTTP!
-async fn client_trait_unaware() {
-    let client = reqwest::Client::new();
-
-    let response = client
-        .post("http://localhost:14123/x")
-        .header("content-type", "application/json")
-        .body(r#"{"method": "reset", "params": {}}"#)
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), reqwest::StatusCode::OK);
-    assert!(response.json::<Value>().await.unwrap().is_null());
-
-    let response = client
-        .post("http://localhost:14123/x")
-        .header("content-type", "application/json")
-        .body(r#"{"method": "add", "params": {"value": 5}}"#)
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), reqwest::StatusCode::OK);
-    assert!(response.json::<Value>().await.unwrap().is_null());
-
-    let response = client
-        .post("http://localhost:14123/x")
-        .header("content-type", "application/json")
-        .body(r#"{"method": "is_bigger_than", "params": {"value": 4}}"#)
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), reqwest::StatusCode::OK);
-    assert!(response.json::<bool>().await.unwrap());
+    let zero = PublicKey::zero();
+    let client = CalculatorStub::new(Box::new(HttpClient::new("localhost:14123/x".to_owned())));
+    client.reset(zero.clone()).await.unwrap();
+    client.add(zero.clone(), 1).await.unwrap();
+    assert_eq!(client.get(zero.clone(),).await.unwrap(), 1);
+    client.add(zero.clone(), 2).await.unwrap();
+    assert_eq!(client.get(zero.clone(),).await.unwrap(), 3);
+    assert!(!client.is_bigger_than(zero.clone(), 3).await.unwrap());
+    assert!(client.is_bigger_than(zero.clone(), 2).await.unwrap());
+    client.reset(zero.clone()).await.unwrap();
+    assert_eq!(client.get(zero.clone(),).await.unwrap(), 0);
 }
 
 #[tokio::main]
 async fn main() {
+    color_eyre::install().unwrap();
     tokio::task::spawn(server());
-
     client_trait_aware().await;
-    client_trait_unaware().await;
 }

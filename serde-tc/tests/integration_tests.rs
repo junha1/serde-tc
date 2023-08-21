@@ -1,4 +1,4 @@
-use http::*;
+use network::*;
 use reqwest::Client;
 use serde_tc::*;
 use std::sync::Arc;
@@ -94,10 +94,7 @@ fn create_server(port: u16) {
 #[tokio::test]
 async fn test_success() {
     create_server(4000);
-    let client = Trait2Stub::new(Box::new(HttpClient::new(
-        "localhost:4000/x".to_owned(),
-        Client::new(),
-    )));
+    let client = Trait2Stub::new(Box::new(HttpClient::new("localhost:4000/x".to_owned())));
     let res = client.f1(1, "2", &3).await.unwrap();
     assert_eq!(res, "123");
 }
@@ -105,10 +102,7 @@ async fn test_success() {
 #[tokio::test]
 async fn test_failure0() {
     create_server(3000);
-    let client = Trait2Stub::new(Box::new(HttpClient::new(
-        "localhost:432/x".to_owned(),
-        Client::new(),
-    )));
+    let client = Trait2Stub::new(Box::new(HttpClient::new("localhost:432/x".to_owned())));
     let res = client.f1(1, "2", &3).await;
     assert!(res.is_err());
 }

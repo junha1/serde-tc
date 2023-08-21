@@ -1,16 +1,25 @@
+mod auth_client;
+mod auth_server;
+mod utils;
+
+use crate::network::auth_server::AuthenticationConsumerLayer;
+
 use super::*;
 use axum::{
-    extract::Path,
+    extract::{Path, State},
     http::{HeaderValue, StatusCode},
     routing::{get, post},
-    Extension, Json, Router,
+    Json, Router,
 };
-use reqwest::{Client, Method};
+use hdk_common::crypto::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 use tower_http::cors::CorsLayer;
+
+const X_HYPERITHM_KEY: &str = "X-HYPERITHM-KEY";
+const X_HYPERITHM_SIGNATURE: &str = "X-HYPERITHM-SIGNATURE";
 
 #[derive(Error, Debug)]
 enum HttpError {
@@ -35,7 +44,7 @@ pub fn create_http_object<T: ?Sized + HttpInterface>(x: Arc<T>) -> Arc<dyn HttpI
 }
 
 #[derive(Clone)]
-struct State {
+struct AppState {
     pub registered_objects: HashMap<String, Arc<dyn HttpInterface>>,
 }
 
@@ -44,10 +53,24 @@ async fn root() -> &'static str {
     "This is a serde-tc JSON RPC server. Please access to /<object-name> with POST, to use the API."
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct RpcPayload {
+    pub method: serde_json::value::Value,
+    #[serde(default)]
+    pub params: serde_json::Map<String, serde_json::value::Value>,
+}
+
+impl ToHash256 for RpcPayload {
+    fn to_hash256(&self) -> Hash256 {
+        let bytes = serde_json::to_vec(&self).unwrap();
+        Hash256::hash(bytes)
+    }
+}
+
 async fn dispatch(
+    State(state): State<AppState>,
     Path(path): Path<String>,
     Json(args): Json<RawArg>,
-    Extension(state): Extension<Arc<State>>,
 ) -> (StatusCode, Json<Value>) {
     if let Some(object) = state.registered_objects.get(&path) {
         match dispatch_raw(object.as_ref(), &args.method, args.params.clone()).await {
@@ -76,15 +99,16 @@ pub async fn run_server(port: u16, objects: HashMap<String, Arc<dyn HttpInterfac
     let app = Router::new().route("/", get(root));
     let app = app.route("/:key", post(dispatch));
     let app = app
-        .layer(Extension(Arc::new(State {
-            registered_objects: objects,
-        })))
+        .layer(AuthenticationConsumerLayer)
         .layer(
             CorsLayer::new()
                 .allow_origin("*".parse::<HeaderValue>().unwrap())
                 .allow_headers([axum::http::header::CONTENT_TYPE])
-                .allow_methods([Method::POST]),
-        );
+                .allow_methods([hyper::Method::POST]),
+        )
+        .with_state(AppState {
+            registered_objects: objects,
+        });
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
@@ -124,41 +148,53 @@ where
 
 /// A RPC client. Use `123.1.2.3:123/object_name` for `addr`.
 pub struct HttpClient {
-    client: Client,
     addr: String,
+    private_key: PrivateKey,
 }
 
 impl HttpClient {
-    pub fn new(addr: String, client: Client) -> Self {
-        HttpClient { client, addr }
+    pub fn new(addr: String) -> Self {
+        HttpClient {
+            addr,
+            private_key: generate_keypair_random().1,
+        }
+    }
+
+    pub fn with_auth(addr: String, private_key: PrivateKey) -> Self {
+        HttpClient { addr, private_key }
     }
 }
 
 #[async_trait]
 impl StubCall for HttpClient {
-    type Error = anyhow::Error;
+    type Error = eyre::Error;
 
     async fn call(&self, method: &'static str, params: String) -> Result<String, Self::Error> {
-        let body = format!(
+        let body = axum::body::Body::from(format!(
             r#"{{"method": "{}",
         "params": {}}}"#,
             method, params
-        );
-        let response = self
-            .client
-            .request(Method::POST, &format!("http://{}", self.addr))
+        ));
+        let mut request = axum::http::Request::builder()
+            .method(hyper::Method::POST)
+            .uri(&format!("http://{}", self.addr))
             .header("content-type", "application/json")
             .body(body)
-            .send()
-            .await?;
-
-        if response.status().as_u16() != 200 {
-            Err(anyhow::Error::msg(format!(
+            .expect("trivial");
+        auth_client::add_auth(&mut request, &self.private_key).await?;
+        use tower::{Service, ServiceBuilder, ServiceExt};
+        let mut client = ServiceBuilder::new().service(hyper::Client::new());
+        let cli = client.ready().await.unwrap();
+        let response = cli.call(request).await.unwrap();
+        let status = response.status().as_u16();
+        let body_text = String::from_utf8(hyper::body::to_bytes(response).await?.to_vec())?;
+        if status != 200 {
+            Err(eyre::Error::msg(format!(
                 r#"HTTP request failed: "{}""#,
-                response.text().await?
+                body_text
             )))
         } else {
-            Ok(response.text().await?)
+            Ok(body_text)
         }
     }
 }

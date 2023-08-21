@@ -1,0 +1,20 @@
+[package]
+name = "hdk-common"
+version = "0.1.0"
+authors = ["Hyperithm <hello@hyperithm.com>"]
+edition = "2021"
+description = "common library widely used in the infrastructure"
+license = "MIT"
+publish = ["hyperithm"]
+
+[dependencies]
+eyre = "0.6.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+rust_decimal = "1.14"
+sha3 = "0.10"
+thiserror = "1.0"
+rand = "0.7"
+hex = "0.4.3"
+secp256k1 = { version = "0.24.2", features = ["recovery", "rand-std"] }
+bincode = "1.3.3"

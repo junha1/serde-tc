@@ -6,15 +6,19 @@
 2. A encoder; it defines a copy of the methods of the trait. Instead of the original return types,
 the newly defined methods return encoded strings that can be directly used by the dispatcher.
 
-`serde-tc` also provides a convenient module `http`,
+`serde-tc` also provides a convenient module `network`,
 which automatically builds a HTTP server using the given trait objects
 to serve as a RPC server. The module also provides a `stub` implementation,
 which can be used as the HTTP client when the server is built with the same trait.
 
-Please refer to `serde-tc/tests/integration_tests.rs` for the actual usage.
+It also provides an authentication layer out of the box, where the client signs the request
+and the server verifies the signature. A reserved parameter name `instance_key` represents
+the public key of the client, which is automatically verified and injected by the authentication layer.
+
+Please refer to `tests/integration_tests.rs` or `examples/calculator.rs` for the actual usage.
 */
 
-pub mod http;
+pub mod network;
 
 use async_trait::async_trait;
 pub use serde;

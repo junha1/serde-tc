@@ -1,5 +1,2 @@
 [workspace]
-members = [
-    "serde-tc",
-    "serde-tc-macro",
-]
+members = ["serde-tc", "serde-tc-macro", "common"]
