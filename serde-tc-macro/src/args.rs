@@ -29,6 +29,7 @@ pub struct MacroArgsRaw {
     pub dispatcher: Option<()>,
     pub tuple: Option<()>,
     pub dict: Option<()>,
+    pub caller_speicifed: Option<syn::Path>,
     pub fallible: Option<syn::Path>,
     pub stub: Option<()>,
 }
@@ -42,6 +43,7 @@ pub struct MacroArgs {
     pub dispatcher: bool,
     pub tuple: bool,
     pub dict: bool,
+    pub caller_speicifed: Option<syn::Path>,
     pub fallible: Option<syn::Path>,
     pub stub: bool,
 }
@@ -111,6 +113,13 @@ impl MacroArgsRaw {
             } else {
                 Ok(())
             }
+        } else if arg.arg_name == quote::format_ident!("caller_speicifed") {
+            let value = syn::parse2(arg.arg_value)?;
+            if self.caller_speicifed.replace(value).is_some() {
+                Err(syn::parse::Error::new_spanned(ts, "Duplicated arguments"))
+            } else {
+                Ok(())
+            }
         } else {
             Err(syn::parse::Error::new_spanned(ts, "Unsupported argument"))
         }
@@ -128,6 +137,7 @@ impl MacroArgsRaw {
             tuple: self.tuple.map(|_| true).unwrap_or(false),
             dict: self.dict.map(|_| true).unwrap_or(false),
             fallible: self.fallible,
+            caller_speicifed: self.caller_speicifed,
             stub: self.stub.map(|_| true).unwrap_or(false),
         }
     }

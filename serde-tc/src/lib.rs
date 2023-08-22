@@ -12,7 +12,7 @@ to serve as a RPC server. The module also provides a `stub` implementation,
 which can be used as the HTTP client when the server is built with the same trait.
 
 It also provides an authentication layer out of the box, where the client signs the request
-and the server verifies the signature. A reserved parameter name `instance_key` represents
+and the server verifies the signature. A reserved parameter name `caller_key` represents
 the public key of the client, which is automatically verified and injected by the authentication layer.
 
 Please refer to `tests/integration_tests.rs` or `examples/calculator.rs` for the actual usage.
@@ -34,17 +34,6 @@ pub enum Error<T: std::error::Error> {
     ArgumentNotFound(String),
     #[error("`{0}`")]
     Parse(T),
-}
-
-pub trait DispatchStringTuple {
-    type Error: std::error::Error;
-    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
-}
-
-pub trait DispatchStringDict {
-    type Error: std::error::Error;
-    type Poly;
-    fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
 }
 
 #[async_trait]

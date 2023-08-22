@@ -69,11 +69,18 @@ pub(super) fn generate_encoder(
         }})
         .unwrap();
         functions_dict.extend(quote! {#the_fn});
+        if method.sig.inputs.len() == 1 {
+            the_fn.block = syn::parse2(quote! {{
+                #serde_format::to_string(&#args_in_tuple).unwrap()
+            }})
+            .unwrap()
+        } else {
+            the_fn.block = syn::parse2(quote! {{
+                "[]".to_owned()
+            }})
+            .unwrap()
+        }
 
-        the_fn.block = syn::parse2(quote! {{
-            #serde_format::to_string(&#args_in_tuple).unwrap()
-        }})
-        .unwrap();
         functions_tuple.extend(quote! {#the_fn});
     }
 

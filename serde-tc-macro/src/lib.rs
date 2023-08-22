@@ -2,9 +2,9 @@
 extern crate quote;
 
 mod args;
+mod augment;
 mod dispatcher;
 mod encoder;
-mod fallible;
 mod helper;
 mod stub;
 
@@ -23,7 +23,7 @@ pub fn serde_tc(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn serde_tc_full(_args: TokenStream, input: TokenStream) -> TokenStream {
     match expand(
-        quote! {dispatcher, encoder, dict, tuple, async_methods, fallible = eyre::Error, stub},
+        quote! {dispatcher, encoder, dict, tuple, async_methods, fallible = eyre::Error, caller_speicifed = hdk_common::crypto::PublicKey, stub},
         TokenStream2::from(input),
     ) {
         Ok(x) => TokenStream::from(x),
@@ -34,7 +34,7 @@ pub fn serde_tc_full(_args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn serde_tc_debug(_args: TokenStream, input: TokenStream) -> TokenStream {
     match expand(
-        quote! {dispatcher, encoder, dict, tuple, async_methods, fallible = eyre::Error, stub},
+        quote! {dispatcher, encoder, dict, tuple, async_methods, fallible = eyre::Error, caller_speicifed = hdk_common::crypto::PublicKey, stub},
         TokenStream2::from(input),
     ) {
         Ok(x) => println!("{}", x),
@@ -57,38 +57,58 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
         }
     };
 
-    let dispatcher = dispatcher::generate_dispatcher(&source_trait, &args)?;
-    let encoder = encoder::generate_encoder(&source_trait, &args)?;
-    let fallible = fallible::generate_fallible_trait(&source_trait, &args)?;
-    let stub = if args.stub {
-        stub::generate_stub(
-            &source_trait,
-            &syn::parse2(fallible.clone()).unwrap(),
-            &args,
-        )?
+    if let (Some(key_type), Some(error_type)) =
+        (args.caller_speicifed.clone(), args.fallible.clone())
+    {
+        let server_trait = augment::generate_caller_specified_trait(&source_trait, &key_type)?;
+        let client_trait = augment::generate_fallible_trait(&source_trait, &error_type)?;
+
+        let dispatcher1 = dispatcher::generate_dispatcher(&source_trait, &args)?;
+        let dispatcher2 = dispatcher::generate_dispatcher(&server_trait, &args)?;
+        let encoder = encoder::generate_encoder(&source_trait, &args)?;
+
+        let stub = if args.stub {
+            stub::generate_stub(
+                &source_trait,
+                &syn::parse2(quote! {#client_trait}).unwrap(),
+                &args,
+            )?
+        } else {
+            quote! {}
+        };
+        let trait_ident = source_trait.ident.clone();
+        let trait_ident_server = server_trait.ident.clone();
+        if args.async_methods {
+            Ok(quote! {
+                #[async_trait::async_trait]
+                #source_trait
+                #[async_trait::async_trait]
+                #server_trait
+                #[async_trait::async_trait]
+                #client_trait
+                #dispatcher1
+                #dispatcher2
+                #encoder
+                #stub
+                impl HttpInterface for dyn #trait_ident {}
+                impl HttpInterface for dyn #trait_ident_server {}
+            })
+        } else {
+            Ok(quote! {
+                #source_trait
+                #server_trait
+                #client_trait
+                #dispatcher1
+                #dispatcher2
+                #encoder
+                #stub
+            })
+        }
     } else {
-        quote! {}
-    };
-    let trait_ident = source_trait.ident.clone();
-    if args.async_methods {
-        Ok(quote! {
-            #[async_trait::async_trait]
-            #source_trait
-            #[async_trait::async_trait]
-            #fallible
-            #dispatcher
-            #encoder
-            #stub
-            impl HttpInterface for dyn #trait_ident {}
-        })
-    } else {
-        Ok(quote! {
-            #source_trait
-            #[async_trait::async_trait]
-            #fallible
-            #dispatcher
-            #encoder
-            #stub
-        })
+        return Err(syn::Error::new_spanned(
+            input,
+            "You must specify both `caller_specified` and `fallible`. Otherwise, currently unimplemented.",
+        )
+        .to_compile_error());
     }
 }

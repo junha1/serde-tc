@@ -95,7 +95,7 @@ impl<S> AuthenticationConsumer<S> {
         let mut payload = parse_payload(req).await?;
         let auth_info = AuthInfo::new(public_key.clone(), signature, payload.clone());
         payload.params.insert(
-            "instance_key".to_owned(),
+            "caller_key".to_owned(),
             serde_json::to_value(&public_key).expect("failed to serialize public key"),
         );
         let new_body =
