@@ -79,9 +79,13 @@ pub(super) fn generate_stub(
             call: Box<dyn StubCall<Error = #error_type>>
         }
 
-        impl #struct_name {
-            pub fn new(call: Box<dyn StubCall<Error = #error_type>>) -> Self {
-                Self { call }
+        impl Stub for #struct_name {
+            type ClientTrait = dyn #trait_ident;
+            fn new<T: StubCall>(sc: T) -> Self {
+                Self {call: Box::new(sc)}
+            }
+            fn as_remote_object(this: Arc<Self>) -> Arc<Self::ClientTrait> {
+                this as Arc<Self::ClientTrait>
             }
         }
 

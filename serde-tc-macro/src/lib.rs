@@ -3,6 +3,7 @@ extern crate quote;
 
 mod args;
 mod augment;
+mod direct_invocation;
 mod dispatcher;
 mod encoder;
 mod helper;
@@ -78,6 +79,18 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
         };
         let trait_ident = source_trait.ident.clone();
         let trait_ident_server = server_trait.ident.clone();
+        let trait_ident_client = client_trait.ident.clone();
+
+        let stub_impl_name = quote::format_ident!("{}Stub", source_trait.ident.to_string());
+
+        let meta_trait = quote! {
+            impl RmiTrait for dyn #trait_ident {
+                type ClientTrait = dyn #trait_ident_client;
+                type ServerTrait = dyn #trait_ident_server;
+                type StubImpl = #stub_impl_name;
+            }
+        };
+
         if args.async_methods {
             Ok(quote! {
                 #[async_trait::async_trait]
@@ -86,6 +99,7 @@ fn expand(args: TokenStream2, input: TokenStream2) -> Result<TokenStream2, Token
                 #server_trait
                 #[async_trait::async_trait]
                 #client_trait
+                #meta_trait
                 #dispatcher1
                 #dispatcher2
                 #encoder

@@ -11,7 +11,9 @@ use tokio::sync::RwLock;
 /// `CalculatorFallible` is another trait that imposes `Result<_, anyhow::Error>` for all methods.
 /// `CalculatorStub` is a struct that implements `CalculatorFallible` using the given abstract client `Box<dyn StubCall>`.
 /// `serde-tc` provides trivial impl. of `StubCall` (`HttpClient`) which will be used for most of the cases.
-#[serde_tc_full]
+pub type Shit = ();
+
+#[serde_tc_debug]
 trait Calculator: Send + Sync {
     async fn add(&self, value: i64);
     async fn is_bigger_than(&self, value: i64) -> bool;
