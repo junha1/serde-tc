@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 /// `serde-tc` provides trivial impl. of `StubCall` (`HttpClient`) which will be used for most of the cases.
 pub type Shit = ();
 
-#[serde_tc_debug]
+#[serde_tc_full]
 trait Calculator: Send + Sync {
     async fn add(&self, value: i64);
     async fn is_bigger_than(&self, value: i64) -> bool;

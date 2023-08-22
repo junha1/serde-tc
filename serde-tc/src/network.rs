@@ -1,10 +1,7 @@
-mod auth_client;
-mod auth_server;
-mod utils;
-
-use crate::network::auth_server::AuthenticationConsumerLayer;
+mod auth;
 
 use super::*;
+use auth::AuthError;
 use axum::{
     extract::{Path, State},
     http::{HeaderValue, StatusCode},
@@ -22,23 +19,28 @@ const X_HYPERITHM_KEY: &str = "X-HYPERITHM-KEY";
 const X_HYPERITHM_SIGNATURE: &str = "X-HYPERITHM-SIGNATURE";
 
 #[derive(Error, Debug)]
-enum HttpError {
-    #[error("invalid request")]
-    InvalidRequest,
-    #[error("method not found")]
-    MethodNotFound,
+enum NetworkError {
+    #[error("failed to parse request: {0}")]
+    Dispatch(DispatchError<serde_json::Error>),
+    #[error("failed to authenticate: {0}")]
+    Auth(#[from] AuthError),
+    #[error("failed to find object: {0}")]
+    ObjectNotFound(String),
+    #[error("hyper error: {0}")]
+    Hyper(#[from] hyper::Error),
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("unknown error of code {0}: {1}")]
+    Unknown(u16, String),
 }
 
 pub trait HttpInterface:
-    DispatchStringDictAsync<Error = serde_json::Error, Poly = serde_json::Value>
-    + DispatchStringTupleAsync<Error = serde_json::Error>
-    + Send
-    + Sync
-    + 'static
+    DispatchStringDictAsync<Error = serde_json::Error, Poly = serde_json::Value> + Send + Sync + 'static
 {
 }
 
 impl<T> HttpInterface for Arc<T> where T: HttpInterface + ?Sized {}
+
 pub fn create_http_object<T: ?Sized + HttpInterface>(x: Arc<T>) -> Arc<dyn HttpInterface> {
     Arc::new(x) as Arc<dyn HttpInterface>
 }
@@ -67,14 +69,27 @@ impl ToHash256 for RpcPayload {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+struct RawArg {
+    method: String,
+    params: serde_json::Value,
+}
+
 async fn dispatch(
     State(state): State<AppState>,
     Path(path): Path<String>,
     Json(args): Json<RawArg>,
 ) -> (StatusCode, Json<Value>) {
     if let Some(object) = state.registered_objects.get(&path) {
-        match dispatch_raw(object.as_ref(), &args.method, args.params.clone()).await {
-            Ok(value) => (StatusCode::OK, Json(value)),
+        let result = DispatchStringDictAsync::dispatch(
+            object.as_ref(),
+            &args.method,
+            &args.params.to_string(),
+        )
+        .await;
+        match result {
+            Ok(value) => (StatusCode::OK, Json(serde_json::from_str(&value).unwrap())),
             Err(err) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({
@@ -99,7 +114,7 @@ pub async fn run_server(port: u16, objects: HashMap<String, Arc<dyn HttpInterfac
     let app = Router::new().route("/", get(root));
     let app = app.route("/:key", post(dispatch));
     let app = app
-        .layer(AuthenticationConsumerLayer)
+        .layer(auth::AuthenticationConsumerLayer)
         .layer(
             CorsLayer::new()
                 .allow_origin("*".parse::<HeaderValue>().unwrap())
@@ -114,36 +129,6 @@ pub async fn run_server(port: u16, objects: HashMap<String, Arc<dyn HttpInterfac
         .serve(app.into_make_service())
         .await
         .unwrap();
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
-struct RawArg {
-    method: String,
-    params: serde_json::Value,
-}
-
-async fn dispatch_raw<T>(
-    api: &T,
-    method: &str,
-    arguments: serde_json::Value,
-) -> std::result::Result<serde_json::Value, HttpError>
-where
-    T: HttpInterface + ?Sized,
-{
-    let result = if arguments.is_array() {
-        DispatchStringTupleAsync::dispatch(api, method, &arguments.to_string()).await
-    } else if arguments.is_object() {
-        DispatchStringDictAsync::dispatch(api, method, &arguments.to_string()).await
-    } else {
-        return Err(HttpError::InvalidRequest);
-    };
-
-    match result {
-        Ok(x) => Ok(serde_json::from_str(&x).unwrap()),
-        Err(Error::MethodNotFound(_)) => Err(HttpError::MethodNotFound),
-        Err(_) => Err(HttpError::InvalidRequest),
-    }
 }
 
 /// A RPC client. Use `123.1.2.3:123/object_name` for `addr`.
@@ -167,7 +152,7 @@ impl HttpClient {
 
 #[async_trait]
 impl StubCall for HttpClient {
-    type Error = eyre::Error;
+    type Error = NetworkError;
 
     async fn call(&self, method: &'static str, params: String) -> Result<String, Self::Error> {
         let body = axum::body::Body::from(format!(
@@ -181,7 +166,7 @@ impl StubCall for HttpClient {
             .header("content-type", "application/json")
             .body(body)
             .expect("trivial");
-        auth_client::add_auth(&mut request, &self.private_key).await?;
+        auth::add_auth(&mut request, &self.private_key).await?;
         use tower::{Service, ServiceBuilder, ServiceExt};
         let mut client = ServiceBuilder::new().service(hyper::Client::new());
         let cli = client.ready().await.unwrap();

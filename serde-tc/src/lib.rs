@@ -28,7 +28,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum Error<T: std::error::Error> {
+pub enum DispatchError<T: std::error::Error> {
     #[error("`{0}`")]
     MethodNotFound(String),
     #[error("`{0}`")]
@@ -38,18 +38,15 @@ pub enum Error<T: std::error::Error> {
 }
 
 #[async_trait]
-pub trait DispatchStringTupleAsync {
-    type Error: std::error::Error;
-
-    async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
-}
-
-#[async_trait]
 pub trait DispatchStringDictAsync {
     type Error: std::error::Error;
     type Poly;
 
-    async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>>;
+    async fn dispatch(
+        &self,
+        method: &str,
+        arguments: &str,
+    ) -> Result<String, DispatchError<Self::Error>>;
 }
 
 #[async_trait]
@@ -60,19 +57,11 @@ where
     type Error = T::Error;
     type Poly = T::Poly;
 
-    async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>> {
-        (self.as_ref() as &T).dispatch(method, arguments).await
-    }
-}
-
-#[async_trait]
-impl<T> DispatchStringTupleAsync for Arc<T>
-where
-    T: DispatchStringTupleAsync + Send + Sync + 'static + ?Sized,
-{
-    type Error = T::Error;
-
-    async fn dispatch(&self, method: &str, arguments: &str) -> Result<String, Error<Self::Error>> {
+    async fn dispatch(
+        &self,
+        method: &str,
+        arguments: &str,
+    ) -> Result<String, DispatchError<Self::Error>> {
         (self.as_ref() as &T).dispatch(method, arguments).await
     }
 }
